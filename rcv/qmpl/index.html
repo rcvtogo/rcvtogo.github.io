@@ -150,26 +150,20 @@
                 const lastTime = parseInt(lastVote);
                 if (now - lastTime < oneDay) {
                     hasVoted = true;
+                    document.getElementById('voting-section').classList.add('hidden');
+                    document.getElementById('session-info').classList.add('hidden');
                 } else {
                     localStorage.removeItem(lastVoteKey);
                     hasVoted = false;
+                    document.getElementById('voting-section').classList.remove('hidden');
+                    document.getElementById('session-info').classList.remove('hidden');
                 }
             } else {
                 hasVoted = false;
+                document.getElementById('voting-section').classList.remove('hidden');
+                document.getElementById('session-info').classList.remove('hidden');
             }
-            updateVotingAvailability();
-        }
-        function updateVotingAvailability() {
-            if (isAdmin) return;
-            const votingSection = document.getElementById('voting-section');
-            const sessionInfo = document.getElementById('session-info');
-            if (hasVoted || resultsRevealed) {
-                votingSection.classList.add('hidden');
-                sessionInfo.classList.add('hidden');
-            } else {
-                votingSection.classList.remove('hidden');
-                sessionInfo.classList.remove('hidden');
-            }
+            updateResultsVisibility();
         }
         // Fetch and populate session list
         function fetchSessionList() {
@@ -383,7 +377,6 @@
                         resultsRevealed = snap.val() || false;
                         updateShowResultsButton();
                         updateResultsVisibility();
-                        updateVotingAvailability();
                         if (resultsRevealed && roundsData) {
                             displayResults(roundsData);
                         }
@@ -427,8 +420,8 @@
                         updateVoteCount();
                         updateShowResultsButton();
                         updateResultsVisibility();
-                        updateVotingAvailability();
                         document.getElementById('define-candidates').classList.add('hidden');
+                        document.getElementById('session-info').classList.remove('hidden');
                         document.getElementById('session-id-display').textContent = sessionId;
                         const currentUrl = new URL(window.location.href);
                         currentUrl.searchParams.set('session', sessionId);
@@ -455,7 +448,9 @@
                 updateVoteCount();
                 updateShowResultsButton();
                 updateResultsVisibility();
-                updateVotingAvailability();
+                document.getElementById('session-info').classList.remove('hidden');
+                document.getElementById('voting-section').classList.remove('hidden');
+                document.getElementById('results-section').classList.remove('hidden');
                 document.getElementById('session-id-display').textContent = sessionId;
                 const currentUrl = new URL(window.location.href);
                 currentUrl.searchParams.set('session', sessionId);
@@ -539,8 +534,8 @@
             updateVoteCount();
             updateShowResultsButton();
             updateResultsVisibility();
-            updateVotingAvailability();
             document.getElementById('define-candidates').classList.add('hidden');
+            document.getElementById('session-info').classList.remove('hidden');
             document.getElementById('session-id-display').textContent = sessionId;
             const currentUrl = new URL(window.location.href);
             currentUrl.searchParams.set('session', sessionId);
@@ -552,7 +547,6 @@
                 resultsRevealed = snap.val() || false;
                 updateShowResultsButton();
                 updateResultsVisibility();
-                updateVotingAvailability();
                 if (resultsRevealed && roundsData) {
                     displayResults(roundsData);
                 }
@@ -677,8 +671,9 @@
                 // Hide voting interface for voters after submission
                 const lastVoteKey = `lastVote_${sessionId}`;
                 localStorage.setItem(lastVoteKey, Date.now().toString());
+                document.getElementById('voting-section').classList.add('hidden');
+                document.getElementById('session-info').classList.add('hidden');
                 hasVoted = true;
-                updateVotingAvailability();
                 updateResultsVisibility();
             }
             updateShowResultsButton();
