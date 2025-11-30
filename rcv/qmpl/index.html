@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ranked Choice Voting (Multi-Device)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+    <style>
+        .candidate-item {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .candidate-item:hover {
+            background-color: #f3f4f6;
+        }
+        #voting-section {
+            margin-bottom: 200vh;
+        }
+        .chart-container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-6 max-w-3xl">
+        <h1 class="text-3xl font-bold mb-6 text-center">Ranked Choice Voting (Multi-Device)</h1>
+        <!-- Session ID display for sharing -->
+        <div id="session-info" class="bg-blue-100 p-4 rounded mb-4 hidden">
+            <p class="text-blue-800">Session ID: <span id="session-id-display"></span> | Share this URL with voters: <a id="share-url" href="#" target="_blank" class="underline">Click to copy</a></p>
+        </div>
+        <div id="define-candidates" class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Define Candidates</h2>
+            <p class="text-gray-600 mb-4">Enter up to 4 candidates. Each must have a unique name. (Admin only)</p>
+            <div class="space-y-2">
+                <input id="candidate1" type="text" placeholder="Candidate 1" class="w-full p-2 border rounded">
+                <input id="candidate2" type="text" placeholder="Candidate 2" class="w-full p-2 border rounded">
+                <input id="candidate3" type="text" placeholder="Candidate 3" class="w-full p-2 border rounded">
+                <input id="candidate4" type="text" placeholder="Candidate 4" class="w-full p-2 border rounded">
+                <input id="passcode" type="text" placeholder="Passcode" class="w-full p-2 border rounded">
+            </div>
+            <div class="flex space-x-2 mt-4">
+                <button id="start-voting" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Start Voting</button>
+                <button id="load-session" class="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600">Load Existing Session</button>
+                <button id="hide-section" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Hide</button>
+                <button id="pause-button" class="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600">Pause</button>
+            </div>
+            <div id="load-session-div" class="hidden bg-gray-100 p-4 rounded mt-4 space-y-2">
+                <label for="session-select" class="block text-sm font-medium text-gray-700">Select a session:</label>
+                <select id="session-select" class="w-full p-2 border rounded">
+                    <option value="">No sessions available</option>
+                </select>
+                <div class="flex space-x-2">
+                    <button id="select-session" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400" disabled>Select</button>
+                    <button id="cancel-load" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Cancel</button>
+                </div>
+            </div>
+        </div>
+        <div id="passcode-prompt" class="bg-white p-6 rounded-lg shadow-md mb-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">Enter Passcode to Vote</h2>
+            <input id="voter-passcode" type="text" placeholder="Passcode" class="w-full p-2 border rounded mb-4">
+            <button id="submit-passcode" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Submit</button>
+        </div>
+        <div id="voting-section" class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold">Pick in Order of Preference, then click Submit Vote</h2>
+                <span id="vote-count" class="text-gray-600"></span>
+            </div>
+            <p class="text-gray-600 mb-4" id="session-note" hidden>Session active. Votes sync across devices!</p>
+            <div id="pause-message" class="hidden bg-yellow-100 border border-yellow-400 text-yellow-800 px-4 py-3 rounded mb-4">
+                <strong>Voting Paused</strong><br>
+                Please wait for the administrator to resume voting.
+            </div>
+            <div id="candidate-list" class="space-y-2">
+                <!-- Candidates will be populated here -->
+            </div>
+            <div id="current-ranking" class="mt-4">
+                <h3 class="font-semibold">Your Current Ranking:</h3>
+                <ol id="ranking-list" class="list-decimal pl-6"></ol>
+            </div>
+            <button id="submit-vote" class="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400" disabled>Submit Vote</button>
+            <button id="undo-ranking" class="mt-4 ml-2 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 disabled:bg-gray-400" disabled>Undo</button>
+        </div>
+        <div id="results-section" class="bg-white p-6 rounded-lg shadow-md">
+            <h2 id="results-header" class="text-xl font-semibold mb-4">Results</h2>
+            <div class="flex space-x-2 mb-4">
+                <button id="show-results" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600 hidden disabled:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed" disabled>Show Results</button>
+                <button id="unhide-section" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 hidden">UnHide</button>
+            </div>
+            <div id="results" class="text-gray-600">
+                <p>No votes submitted yet.</p>
+            </div>
+        </div>
+    </div>
+    <script>
+// Your Firebase config (pasted exactly, with trailing / added to databaseURL)
+    const firebaseConfig = {
+        apiKey: "AIzaSyA0_6bomoTLz2rAC47xgov-ww-GJGpbXJ8",
+        authDomain: "rcvfire01.firebaseapp.com",
+        databaseURL: "https://rcvfire01-default-rtdb.firebaseio.com/", // Added trailing /
+        projectId: "rcvfire01",
+        storageBucket: "rcvfire01.firebasestorage.app",
+        messagingSenderId: "383293127130",
+        appId: "1:383293127130:web:474b8f9df829dbc856e8e3"
+    };
+    // Initialize Firebase (compat style)
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    // firebase.initializeApp(firebaseConfig);
+    // const db = firebase.database();
+        let candidates = [];
+        let votes = []; // Local cache; syncs from DB
+        let currentRanking = [];
+        let sessionStartTime = null;
+        let voteCounter = 0;
+        let sessionId = null;
+        let isAdmin = false; // NEW: Track admin mode
+        let hasVoted = false;
+        let resultsRevealed = false;
+        let isPaused = false;
+        let chartCounter = 0;
+        let dbRef = null; // Session ref
+        let votesRef = null; // Votes child ref
+        let resultsRevealedRef = null; // Results revealed child ref
+        let pausedRef = null; // Paused child ref
+        let roundsRef = null; // Rounds child ref
+        let roundsData = null;
+        let passcode = null;
+        function formatTimestamp(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day}--${hours}-${minutes}-${seconds}`;
+        }
+        function checkVoteStatus() {
+            if (isAdmin) return;
+            const lastVoteKey = `lastVote_${sessionId}`;
+            const lastVote = localStorage.getItem(lastVoteKey);
+            const now = Date.now();
+            const oneDay = 24 * 60 * 60 * 1000;
+            if (lastVote) {
+                const lastTime = parseInt(lastVote);
+                if (now - lastTime < oneDay) {
+                    hasVoted = true;
+                    document.getElementById('voting-section').classList.add('hidden');
+                    document.getElementById('session-info').classList.add('hidden');
+                } else {
+                    localStorage.removeItem(lastVoteKey);
+                    hasVoted = false;
+                    document.getElementById('voting-section').classList.remove('hidden');
+                    document.getElementById('session-info').classList.remove('hidden');
+                }
+            } else {
+                hasVoted = false;
+                document.getElementById('voting-section').classList.remove('hidden');
+                document.getElementById('session-info').classList.remove('hidden');
+            }
+            updateResultsVisibility();
+        }
+        // Fetch and populate session list
+        function fetchSessionList() {
+            const sessionsRef = db.ref('sessions');
+            sessionsRef.once('value').then((snapshot) => {
+                const sessions = [];
+                snapshot.forEach((childSnapshot) => {
+                    sessions.push(childSnapshot.key);
+                });
+                const select = document.getElementById('session-select');
+                const selectBtn = document.getElementById('select-session');
+                select.innerHTML = '';
+                if (sessions.length === 0) {
+                    select.innerHTML = '<option value="">No sessions available</option>';
+                    selectBtn.disabled = true;
+                } else {
+                    // Sort sessions by key (timestamp)
+                    sessions.sort();
+                    sessions.forEach((session) => {
+                        const option = document.createElement('option');
+                        option.value = session;
+                        option.textContent = session;
+                        select.appendChild(option);
+                    });
+                    selectBtn.disabled = false;
+                }
+                document.getElementById('load-session-div').classList.remove('hidden');
+            }).catch((error) => {
+                console.error('Error fetching sessions:', error);
+                alert('Error loading sessions. Please try again.');
+                document.getElementById('load-session-div').classList.add('hidden');
+            });
+        }
+        // Sync votes from DB to local cache
+        function syncVotes() {
+            if (!votesRef) return;
+            votesRef.on('value', (snapshot) => {
+                const dbVotes = snapshot.val() || [];
+                votes = Array.isArray(dbVotes) ? dbVotes : [];
+                // Filter invalid votes
+                votes = votes.filter(vote => Array.isArray(vote) && vote.every(c => candidates.includes(c)));
+                updateVoteCount();
+                if (votes.length > 0) {
+                    document.getElementById('results').innerHTML = '<p>Press "Show Results" to view the election outcome.</p>';
+                } else {
+                    document.getElementById('results').innerHTML = '<p>No votes submitted yet.</p>';
+                }
+                updateShowResultsButton();
+            });
+        }
+        // Update show results button state
+        function updateShowResultsButton() {
+            const btn = document.getElementById('show-results');
+            if (votes.length === 0) {
+                btn.classList.add('hidden');
+                return;
+            }
+            btn.classList.remove('hidden');
+            if (!isAdmin) {
+                btn.textContent = 'Results';
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                btn.textContent = 'Show Results';
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+        // Update results visibility
+        function updateResultsVisibility() {
+            const header = document.getElementById('results-header');
+            const resultsEl = document.getElementById('results');
+            if (!isAdmin && hasVoted && !resultsRevealed) {
+                header.classList.add('hidden');
+                resultsEl.classList.add('hidden');
+            } else {
+                header.classList.remove('hidden');
+                resultsEl.classList.remove('hidden');
+            }
+        }
+        // Save state to DB
+        function saveStateToDB() {
+            if (!dbRef) return;
+            if (votes.length === 0) {
+                // Initial save
+                dbRef.set({
+                    candidates: candidates,
+                    passcode: passcode,
+                    votes: votes,
+                    resultsRevealed: false,
+                    paused: false,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+            } else {
+                // Update votes only
+                dbRef.update({
+                    votes: votes
+                });
+            }
+        }
+        function updateVoteCount() {
+            const voteCountSpan = document.getElementById('vote-count');
+            voteCountSpan.textContent = `Total Votes: ${votes.length}`;
+        }
+        function updateUndoButton() {
+            const undoButton = document.getElementById('undo-ranking');
+            if (!isAdmin && isPaused) {
+                undoButton.disabled = true;
+                return;
+            }
+            undoButton.disabled = currentRanking.length === 0;
+        }
+        function playSound(type) {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            if (type === 'submit') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(800, ctx.currentTime);
+                gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            }
+            oscillator.start();
+            oscillator.stop(ctx.currentTime + 0.5);
+        }
+        // UPDATED: Conditional UnHide button visibility (admin retains it)
+        function toggleUnhideButton() {
+            const unhideButton = document.getElementById('unhide-section');
+            if (sessionId && !isAdmin) {
+                // Voter mode: Hide the button
+                unhideButton.classList.add('hidden');
+            } else {
+                // Admin mode: Show it
+                unhideButton.classList.remove('hidden');
+            }
+        }
+        function updatePauseButton() {
+            if (!isAdmin) return;
+            const btn = document.getElementById('pause-button');
+            if (isPaused) {
+                btn.textContent = 'Paused';
+                btn.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+                btn.classList.add('bg-red-500', 'hover:bg-red-600');
+            } else {
+                btn.textContent = 'Pause';
+                btn.classList.remove('bg-red-500', 'hover:bg-red-600');
+                btn.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+            }
+        }
+        function updateVotingPauseState() {
+            const messageEl = document.getElementById('pause-message');
+            const candidateItems = document.querySelectorAll('.candidate-item');
+            if (!isAdmin && isPaused) {
+                messageEl.classList.remove('hidden');
+                candidateItems.forEach(el => {
+                    el.style.pointerEvents = 'none';
+                    el.classList.add('opacity-50', 'cursor-not-allowed');
+                });
+            } else {
+                messageEl.classList.add('hidden');
+                candidateItems.forEach(el => {
+                    el.style.pointerEvents = '';
+                    el.classList.remove('opacity-50', 'cursor-not-allowed');
+                });
+            }
+        }
+        // Load existing session (now shows list)
+        document.getElementById('load-session').addEventListener('click', () => {
+            fetchSessionList();
+        });
+        document.getElementById('select-session').addEventListener('click', () => {
+            const selectedId = document.getElementById('session-select').value;
+            if (selectedId && selectedId.startsWith('session-')) {
+                isAdmin = true; // Treat manual load as admin
+                sessionId = selectedId;
+                document.getElementById('load-session-div').classList.add('hidden');
+                loadSession();
+            }
+        });
+        document.getElementById('cancel-load').addEventListener('click', () => {
+            document.getElementById('load-session-div').classList.add('hidden');
+        });
+        // Load session from DB
+        function loadSession() {
+            dbRef = db.ref(`sessions/${sessionId}`);
+            votesRef = dbRef.child('votes');
+            resultsRevealedRef = dbRef.child('resultsRevealed');
+            pausedRef = dbRef.child('paused');
+            roundsRef = dbRef.child('rounds');
+            dbRef.once('value').then((snapshot) => {
+                const data = snapshot.val();
+                if (data && data.candidates) {
+                    candidates = data.candidates;
+                    passcode = data.passcode || null;
+                    votes = data.votes || [];
+                    resultsRevealed = data.resultsRevealed || false;
+                    isPaused = data.paused || false;
+                    roundsData = data.rounds || null;
+                    sessionStartTime = new Date(data.timestamp || Date.now());
+                    document.getElementById('candidate1').value = candidates[0] || '';
+                    document.getElementById('candidate2').value = candidates[1] || '';
+                    document.getElementById('candidate3').value = candidates[2] || '';
+                    document.getElementById('candidate4').value = candidates[3] || '';
+                    currentRanking = [];
+                    hasVoted = false;
+                    syncVotes(); // Start listening for votes
+                    // Start listening for resultsRevealed
+                    resultsRevealedRef.on('value', (snap) => {
+                        resultsRevealed = snap.val() || false;
+                        updateShowResultsButton();
+                        updateResultsVisibility();
+                        if (resultsRevealed && roundsData) {
+                            displayResults(roundsData);
+                        }
+                    });
+                    // Start listening for paused
+                    pausedRef.on('value', (snap) => {
+                        isPaused = snap.val() || false;
+                        if (isAdmin) {
+                            updatePauseButton();
+                        }
+                        updateSubmitButton();
+                        updateUndoButton();
+                        updateVotingPauseState();
+                    });
+                    // Start listening for rounds
+                    roundsRef.on('value', (snap) => {
+                        roundsData = snap.val() || null;
+                        if (resultsRevealed && roundsData) {
+                            displayResults(roundsData);
+                        }
+                    });
+                    if (resultsRevealed && roundsData) {
+                        displayResults(roundsData);
+                    }
+                    if (isAdmin) {
+                        updatePauseButton();
+                    }
+                    if (!isAdmin && passcode && passcode.trim() !== '') {
+                        // Show passcode prompt, hide everything else
+                        document.getElementById('passcode-prompt').classList.remove('hidden');
+                        const sectionsToHide = ['session-info', 'voting-section', 'results-section', 'define-candidates'];
+                        sectionsToHide.forEach(id => {
+                            const el = document.getElementById(id);
+                            if (el) el.classList.add('hidden');
+                        });
+                    } else {
+                        // Normal flow: populate and show
+                        populateCandidates();
+                        updateRankingDisplay();
+                        updateUndoButton();
+                        updateVoteCount();
+                        updateShowResultsButton();
+                        updateResultsVisibility();
+                        document.getElementById('define-candidates').classList.add('hidden');
+                        document.getElementById('session-info').classList.remove('hidden');
+                        document.getElementById('session-id-display').textContent = sessionId;
+                        const currentUrl = new URL(window.location.href);
+                        currentUrl.searchParams.set('session', sessionId);
+                        document.getElementById('share-url').href = currentUrl.toString();
+                        document.getElementById('session-note').classList.remove('hidden');
+                        checkVoteStatus();
+                        toggleUnhideButton();
+                    }
+                } else {
+                    alert('Session not found. Start a new one.');
+                    isAdmin = false; // Reset if failed
+                    toggleUnhideButton();
+                }
+            });
+        }
+        document.getElementById('submit-passcode').addEventListener('click', () => {
+            const entered = document.getElementById('voter-passcode').value.trim();
+            if (entered === passcode) {
+                // Success: show sections and initialize
+                document.getElementById('passcode-prompt').classList.add('hidden');
+                populateCandidates();
+                updateRankingDisplay();
+                updateUndoButton();
+                updateVoteCount();
+                updateShowResultsButton();
+                updateResultsVisibility();
+                document.getElementById('session-info').classList.remove('hidden');
+                document.getElementById('voting-section').classList.remove('hidden');
+                document.getElementById('results-section').classList.remove('hidden');
+                document.getElementById('session-id-display').textContent = sessionId;
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set('session', sessionId);
+                document.getElementById('share-url').href = currentUrl.toString();
+                document.getElementById('session-note').classList.remove('hidden');
+                checkVoteStatus();
+                toggleUnhideButton();
+                updateVotingPauseState();
+            } else {
+                alert('Incorrect passcode. Please try again.');
+                document.getElementById('voter-passcode').value = '';
+            }
+        });
+        document.getElementById('voter-passcode').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                document.getElementById('submit-passcode').click();
+            }
+        });
+        // Check URL for session ID on load
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            sessionId = urlParams.get('session');
+            isAdmin = !sessionId; // UPDATED: Set admin if no session ID
+            if (sessionId) {
+                loadSession();
+            }
+            toggleUnhideButton();
+        });
+        document.getElementById('hide-section').addEventListener('click', () => {
+            document.getElementById('define-candidates').classList.add('hidden');
+        });
+        document.getElementById('unhide-section').addEventListener('click', () => {
+            document.getElementById('define-candidates').classList.remove('hidden');
+        });
+        document.getElementById('pause-button').addEventListener('click', () => {
+            if (!isAdmin) return;
+            const newPaused = !isPaused;
+            isPaused = newPaused;
+            updatePauseButton();
+            dbRef.update({ paused: newPaused });
+        });
+        // Start voting -> save to DB
+        document.getElementById('start-voting').addEventListener('click', () => {
+            const inputs = [
+                document.getElementById('candidate1').value.trim(),
+                document.getElementById('candidate2').value.trim(),
+                document.getElementById('candidate3').value.trim(),
+                document.getElementById('candidate4').value.trim()
+            ];
+            const passcodeValue = document.getElementById('passcode').value.trim();
+            candidates = inputs.filter(name => name !== '').slice(0, 4);
+            if (new Set(candidates).size !== candidates.length) {
+                alert('All candidate names must be unique.');
+                return;
+            }
+            if (candidates.length < 2) {
+                alert('Please enter at least 2 candidates.');
+                return;
+            }
+            sessionStartTime = new Date();
+            sessionId = `session-${formatTimestamp(sessionStartTime)}`;
+            passcode = passcodeValue;
+            isAdmin = true; // UPDATED: Ensure admin retains mode after start
+            votes = [];
+            resultsRevealed = false;
+            isPaused = false;
+            hasVoted = false;
+            roundsData = null;
+            dbRef = db.ref(`sessions/${sessionId}`);
+            votesRef = dbRef.child('votes');
+            resultsRevealedRef = dbRef.child('resultsRevealed');
+            pausedRef = dbRef.child('paused');
+            roundsRef = dbRef.child('rounds');
+            saveStateToDB(); // Initial save
+            document.getElementById('results').innerHTML = '<p>No votes submitted yet.</p>';
+            currentRanking = [];
+            populateCandidates();
+            updateRankingDisplay();
+            updateUndoButton();
+            updateVoteCount();
+            updateShowResultsButton();
+            updateResultsVisibility();
+            document.getElementById('define-candidates').classList.add('hidden');
+            document.getElementById('session-info').classList.remove('hidden');
+            document.getElementById('session-id-display').textContent = sessionId;
+            const currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.set('session', sessionId);
+            document.getElementById('share-url').href = currentUrl.toString();
+            document.getElementById('session-note').classList.remove('hidden');
+            syncVotes(); // Start listening
+            // Start listening for resultsRevealed
+            resultsRevealedRef.on('value', (snap) => {
+                resultsRevealed = snap.val() || false;
+                updateShowResultsButton();
+                updateResultsVisibility();
+                if (resultsRevealed && roundsData) {
+                    displayResults(roundsData);
+                }
+            });
+            // Start listening for paused
+            pausedRef.on('value', (snap) => {
+                isPaused = snap.val() || false;
+                if (isAdmin) {
+                    updatePauseButton();
+                }
+                updateSubmitButton();
+                updateUndoButton();
+                updateVotingPauseState();
+            });
+            // Start listening for rounds
+            roundsRef.on('value', (snap) => {
+                roundsData = snap.val() || null;
+                if (resultsRevealed && roundsData) {
+                    displayResults(roundsData);
+                }
+            });
+            if (isAdmin) {
+                updatePauseButton();
+            }
+            checkVoteStatus();
+            toggleUnhideButton();
+            updateVotingPauseState();
+        });
+        function populateCandidates() {
+            const list = document.getElementById('candidate-list');
+            list.innerHTML = '';
+            const shuffledCandidates = [...candidates];
+            for (let i = shuffledCandidates.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffledCandidates[i], shuffledCandidates[j]] = [shuffledCandidates[j], shuffledCandidates[i]];
+            }
+            shuffledCandidates.forEach(candidate => {
+                const div = document.createElement('div');
+                div.className = 'candidate-item flex items-center p-2 bg-gray-50 border rounded';
+                div.innerHTML = `<span>${candidate}</span>`;
+                div.addEventListener('click', () => handleCandidateClick(candidate, div));
+                list.appendChild(div);
+            });
+            updateSubmitButton();
+            updateUndoButton();
+            updateVotingPauseState();
+        }
+        function handleCandidateClick(candidate, element) {
+            if (!isAdmin && isPaused) {
+                return;
+            }
+            if (!currentRanking.includes(candidate)) {
+                currentRanking.push(candidate);
+                element.remove();
+                const remainingCandidates = candidates.filter(c => !currentRanking.includes(c));
+                if (remainingCandidates.length === 1) {
+                    currentRanking.push(remainingCandidates[0]);
+                    const list = document.getElementById('candidate-list');
+                    list.innerHTML = '';
+                }
+                updateRankingDisplay();
+                updateSubmitButton();
+                updateUndoButton();
+            }
+        }
+        function updateRankingDisplay() {
+            const rankingList = document.getElementById('ranking-list');
+            rankingList.innerHTML = '';
+            currentRanking.forEach((candidate, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${candidate}`;
+                rankingList.appendChild(li);
+            });
+        }
+        function updateSubmitButton() {
+            const submitButton = document.getElementById('submit-vote');
+            if (!isAdmin && isPaused) {
+                submitButton.disabled = true;
+                return;
+            }
+            submitButton.disabled = currentRanking.length !== candidates.length;
+        }
+        document.getElementById('undo-ranking').addEventListener('click', () => {
+            if (!isAdmin && isPaused) {
+                return;
+            }
+            currentRanking = [];
+            populateCandidates();
+            updateRankingDisplay();
+            updateUndoButton();
+        });
+        // Submit -> push to DB
+        document.getElementById('submit-vote').addEventListener('click', () => {
+            if (currentRanking.length !== candidates.length) return;
+            if (!isAdmin && isPaused) {
+                alert('Voting is paused. Please wait for the administrator to resume.');
+                return;
+            }
+            if (!isAdmin) {
+                const lastVoteKey = `lastVote_${sessionId}`;
+                const lastVote = localStorage.getItem(lastVoteKey);
+                if (lastVote) {
+                    const lastTime = parseInt(lastVote);
+                    const now = Date.now();
+                    const oneDay = 24 * 60 * 60 * 1000;
+                    if (now - lastTime < oneDay) {
+                        alert('You can only vote once per day.');
+                        return;
+                    }
+                }
+            }
+            playSound('submit');
+            votes.push([...currentRanking]); // Local first
+            voteCounter++;
+            saveStateToDB(); // Sync to DB (triggers syncVotes on other devices)
+            currentRanking = [];
+            populateCandidates();
+            updateRankingDisplay();
+            updateUndoButton();
+            updateVoteCount();
+            if (!isAdmin) {
+                // Hide voting interface for voters after submission
+                const lastVoteKey = `lastVote_${sessionId}`;
+                localStorage.setItem(lastVoteKey, Date.now().toString());
+                document.getElementById('voting-section').classList.add('hidden');
+                document.getElementById('session-info').classList.add('hidden');
+                hasVoted = true;
+                updateResultsVisibility();
+            }
+            updateShowResultsButton();
+        });
+        document.getElementById('show-results').addEventListener('click', () => {
+            if (!isAdmin) return;
+            const rounds = [];
+            compute_rcv_winner(votes, candidates, rounds);
+            // Serialize for storage
+            const serializedRounds = rounds.map(round => ({
+                candidates: Array.from(round.candidates),
+                counts: Object.fromEntries(round.counts),
+                eliminated: round.eliminated,
+                winner: round.winner,
+                majority: round.majority,
+                randomChoice: round.randomChoice
+            }));
+            dbRef.update({
+                rounds: serializedRounds,
+                resultsRevealed: true
+            });
+            // Immediate display for admin
+            displayResults(serializedRounds);
+        });
+        // RCV compute function (unchanged except added randomChoice for initial tie)
+        function compute_rcv_winner(ballots, candidates = null, rounds = null) {
+            try {
+                if (!Array.isArray(ballots) || ballots.length === 0) {
+                    throw new Error('Invalid ballots: Must be a non-empty array of arrays.');
+                }
+                if (candidates && (!Array.isArray(candidates) || candidates.length === 0)) {
+                    throw new Error('Invalid candidates: Must be a non-empty array.');
+                }
+                if (!candidates) {
+                    candidates = new Set(ballots.flat().filter(c => typeof c === 'string' && c));
+                    if (candidates.size === 0) {
+                        throw new Error('No valid candidates found in ballots.');
+                    }
+                } else {
+                    candidates = new Set(candidates);
+                }
+                let counts = new Map([...candidates].map(c => [c, 0]));
+                for (let b of ballots) {
+                    if (!Array.isArray(b)) {
+                        console.warn('Skipping invalid ballot:', b);
+                        continue;
+                    }
+                    for (let choice of b) {
+                        if (candidates.has(choice)) {
+                            counts.set(choice, counts.get(choice) + 1);
+                            break;
+                        }
+                    }
+                }
+                if (Array.isArray(rounds)) {
+                    rounds.push({
+                        candidates: new Set(candidates),
+                        counts: new Map(counts),
+                        eliminated: null,
+                        winner: null,
+                        majority: null,
+                        randomChoice: false
+                    });
+                }
+                let values = [...counts.values()];
+                if (values.every(v => v === values[0]) && values[0] !== 0) {
+                    let winner = [...candidates][Math.floor(Math.random() * candidates.size)];
+                    let majority = 1 / candidates.size;
+                    if (Array.isArray(rounds)) {
+                        rounds[rounds.length - 1].winner = winner;
+                        rounds[rounds.length - 1].majority = majority;
+                        rounds[rounds.length - 1].randomChoice = true;
+                    }
+                    return [winner, majority];
+                }
+                let total = values.reduce((a, b) => a + b, 0);
+                if (total === 0) {
+                    throw new Error('No valid votes counted in this round.');
+                }
+                for (let [cand, cnt] of counts) {
+                    if (cnt > total / 2) {
+                        if (Array.isArray(rounds)) {
+                            rounds[rounds.length - 1].winner = cand;
+                            rounds[rounds.length - 1].majority = cnt / total;
+                        }
+                        return [cand, cnt / total];
+                    }
+                }
+                // Check for zero-vote candidates first
+                let zero_vote_candidates = [...counts].filter(([c, v]) => v === 0).map(([c]) => c);
+                if (zero_vote_candidates.length > 0) {
+                    if (Array.isArray(rounds)) {
+                        rounds[rounds.length - 1].eliminated = zero_vote_candidates.join(', ');
+                    }
+                    let new_candidates = new Set(candidates);
+                    zero_vote_candidates.forEach(c => new_candidates.delete(c));
+                    if (new_candidates.size === 0) {
+                        throw new Error('All candidates eliminated.');
+                    }
+                    return compute_rcv_winner(ballots, [...new_candidates], rounds);
+                }
+                // Proceed with non-zero vote elimination
+                let min_votes = Math.min(...values.filter(v => v > 0));
+                let lowest_candidates = [...counts].filter(([c, v]) => v === min_votes).map(([c]) => c);
+                if (lowest_candidates.length === 0) {
+                    throw new Error('No candidates to eliminate.');
+                }
+                if (lowest_candidates.length === 1) {
+                    if (Array.isArray(rounds)) {
+                        rounds[rounds.length - 1].eliminated = lowest_candidates[0];
+                    }
+                    let new_candidates = new Set(candidates);
+                    new_candidates.delete(lowest_candidates[0]);
+                    if (new_candidates.size === 0) {
+                        throw new Error('All candidates eliminated.');
+                    }
+                    return compute_rcv_winner(ballots, [...new_candidates], rounds);
+                }
+                let best_majority = -1;
+                let best_elims = [];
+                let best_winners = [];
+                for (let elim of lowest_candidates) {
+                    let new_candidates = new Set(candidates);
+                    new_candidates.delete(elim);
+                    for (let i = 0; i < 100; i++) {
+                        let [winner, majority] = compute_rcv_winner(ballots, [...new_candidates], null);
+                        if (majority > best_majority) {
+                            best_majority = majority;
+                            best_elims = [elim];
+                            best_winners = [winner];
+                        } else if (majority === best_majority) {
+                            best_elims.push(elim);
+                            best_winners.push(winner);
+                        }
+                    }
+                }
+                let chosen_elim = best_elims[Math.floor(Math.random() * best_elims.length)];
+                if (Array.isArray(rounds)) {
+                    let message = chosen_elim;
+                    if (new Set(best_winners).size === 1 && new Set(best_elims).size > 1) {
+                      message += ' (eliminating any other option yields the same final result)';
+                    } else if (new Set(best_winners).size === 1 && new Set(best_elims).size === 1) {
+                      message += ' (eliminating any other option yields a lower majority score)';
+                    } else {
+                      message += ' (random choice) ';
+                    }
+                    rounds[rounds.length - 1].eliminated = message;
+                    rounds[rounds.length - 1].randomChoice = new Set(best_winners).size >= 2;
+                }
+                let new_candidates = new Set(candidates);
+                new_candidates.delete(chosen_elim);
+                if (new_candidates.size === 0) {
+                    throw new Error('All candidates eliminated.');
+                }
+                return compute_rcv_winner(ballots, [...new_candidates], rounds);
+            } catch (error) {
+                console.error('Error in compute_rcv_winner:', error.message, error.stack);
+                throw error;
+            }
+        }
+        // Display results from stored rounds
+        function displayResults(storedRounds) {
+            const resultsDiv = document.getElementById('results');
+            if (!candidates || !Array.isArray(candidates) || candidates.length < 2) {
+                resultsDiv.innerHTML = '<p>Invalid candidates list. Please define at least 2 candidates.</p>';
+                return;
+            }
+            if (!storedRounds || !Array.isArray(storedRounds) || storedRounds.length === 0) {
+                resultsDiv.innerHTML = '<p>No results available yet.</p>';
+                return;
+            }
+            resultsDiv.innerHTML = '';
+            const candidateColors = {};
+            const colorPalette = [
+                { background: '#00A000', border: '#00A000' }, // Green
+                { background: '#1976D2', border: '#1976D2' }, // Blue
+                { background: '#00d3d3', border: '#00A0A0' }, // Yellow
+                { background: '#891fb6', border: '#891fb6' } // Red
+            ];
+            candidates.forEach((candidate, index) => {
+                candidateColors[candidate] = colorPalette[index % colorPalette.length];
+            });
+            try {
+                const randomChoiceMade = storedRounds.some(round => round.randomChoice);
+                storedRounds.forEach((round, index) => {
+                    if (!round || !round.counts) {
+                        console.error('Invalid round data at index:', index, round);
+                        const errorP = document.createElement('p');
+                        errorP.className = 'text-red-600 mt-2';
+                        errorP.textContent = `Error: Invalid data for round ${index + 1}. Skipping chart.`;
+                        resultsDiv.appendChild(errorP);
+                        return;
+                    }
+                    const roundDiv = document.createElement('div');
+                    roundDiv.innerHTML = `<h3 class="font-semibold mt-4">Round ${index + 1}</h3>`;
+                    const ul = document.createElement('ul');
+                    ul.className = 'list-disc pl-5';
+                    const sortedCandidates = round.candidates.sort((a, b) => a.localeCompare(b));
+                    sortedCandidates.forEach(candidate => {
+                        const count = round.counts[candidate] || 0;
+                        const li = document.createElement('li');
+                        li.textContent = `${candidate}: ${count} votes`;
+                        ul.appendChild(li);
+                    });
+                    roundDiv.appendChild(ul);
+                    const chartId = `vote-chart-round-${index + 1}-${chartCounter}-${Date.now()}`;
+                    const chartContainer = document.createElement('div');
+                    chartContainer.className = 'chart-container';
+                    chartContainer.innerHTML = `<canvas id="${chartId}" height="${sortedCandidates.length * 50}"></canvas>`;
+                    roundDiv.appendChild(chartContainer);
+                    resultsDiv.appendChild(roundDiv);
+                    // Create chart immediately after appending to DOM
+                    const ctx = document.getElementById(chartId);
+                    if (!ctx) {
+                        console.error('Canvas not found for chartId:', chartId);
+                        const errorP = document.createElement('p');
+                        errorP.className = 'text-red-600 mt-2';
+                        errorP.textContent = `Error: Chart for round ${index + 1} could not be rendered.`;
+                        roundDiv.appendChild(errorP);
+                        return;
+                    }
+                    try {
+                        new Chart(ctx.getContext('2d'), {
+                            type: 'bar',
+                            data: {
+                                labels: sortedCandidates,
+                                datasets: [{
+                                    label: `Votes in Round ${index + 1}`,
+                                    data: sortedCandidates.map(candidate => round.counts[candidate] || 0),
+                                    backgroundColor: sortedCandidates.map(candidate => candidateColors[candidate]?.background || 'gray'),
+                                    borderColor: sortedCandidates.map(candidate => candidateColors[candidate]?.border || 'gray'),
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                indexAxis: 'y',
+                                scales: {
+                                    x: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Number of Votes',
+                                            font: { size: 16 }
+                                        },
+                                        ticks: { stepSize: 1, font: { size: 14 } }
+                                    },
+                                    y: {
+                                        title: {
+                                            display: true,
+                                            text: 'Candidates',
+                                            font: { size: 16 }
+                                        },
+                                        ticks: { font: { size: 14 } }
+                                    }
+                                },
+                                plugins: { legend: { display: false } }
+                            }
+                        });
+                    } catch (chartError) {
+                        console.error('Error creating chart for round:', index + 1, chartError);
+                        const errorP = document.createElement('p');
+                        errorP.className = 'text-red-600 mt-2';
+                        errorP.textContent = `Error: Chart for round ${index + 1} failed: ${chartError.message}`;
+                        roundDiv.appendChild(errorP);
+                    }
+                    if (round.eliminated) {
+                        const p = document.createElement('p');
+                        p.className = 'mt-2';
+                        p.textContent = `Eliminated: ${round.eliminated}${round.randomChoice ? ' (randomly selected due to a tie)' : ''}`;
+                        roundDiv.appendChild(p);
+                    } else if (round.winner) {
+                        const p = document.createElement('p');
+                        p.className = 'font-bold mt-2';
+                        p.textContent = `Winner: ${round.winner} with ${(round.majority * 100).toFixed(2)}% of votes${randomChoiceMade ? ' (randomly selected due to a tie)' : ''}`;
+                        roundDiv.appendChild(p);
+                    }
+                });
+                if (!storedRounds.some(round => round.winner) && storedRounds.length > 0) {
+                    const noWinnerP = document.createElement('p');
+                    noWinnerP.className = 'font-bold mt-2';
+                    noWinnerP.textContent = 'No winner (all candidates eliminated or no valid votes).';
+                    resultsDiv.appendChild(noWinnerP);
+                }
+            } catch (error) {
+                console.error('Error in displayResults:', error.message, error.stack);
+                resultsDiv.innerHTML = `<p>Error displaying results: ${error.message}. Please check the console for details.</p>`;
+            }
+        }
+        updateVoteCount();
+    </script>
+</body>
+</html>
