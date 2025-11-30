@@ -236,7 +236,10 @@
         function updateResultsVisibility() {
             const header = document.getElementById('results-header');
             const resultsEl = document.getElementById('results');
-            if (!isAdmin && hasVoted && !resultsRevealed) {
+            if (resultsRevealed) {
+                header.classList.remove('hidden');
+                resultsEl.classList.remove('hidden');
+            } else if (!isAdmin && hasVoted) {
                 header.classList.add('hidden');
                 resultsEl.classList.add('hidden');
             } else {
@@ -379,6 +382,18 @@
                         updateResultsVisibility();
                         if (resultsRevealed && roundsData) {
                             displayResults(roundsData);
+                        }
+                        // NEW: If results revealed and not admin, force show results mode
+                        if (resultsRevealed && !isAdmin) {
+                            // Hide voting-related sections
+                            document.getElementById('passcode-prompt').classList.add('hidden');
+                            document.getElementById('voting-section').classList.add('hidden');
+                            document.getElementById('session-info').classList.add('hidden');
+                            // Ensure results visible
+                            document.getElementById('results-header').classList.remove('hidden');
+                            document.getElementById('results').classList.remove('hidden');
+                            // Optionally, hide define-candidates if somehow visible
+                            document.getElementById('define-candidates').classList.add('hidden');
                         }
                     });
                     // Start listening for paused
@@ -549,6 +564,18 @@
                 updateResultsVisibility();
                 if (resultsRevealed && roundsData) {
                     displayResults(roundsData);
+                }
+                // NEW: If results revealed and not admin, force show results mode
+                if (resultsRevealed && !isAdmin) {
+                    // Hide voting-related sections
+                    document.getElementById('passcode-prompt').classList.add('hidden');
+                    document.getElementById('voting-section').classList.add('hidden');
+                    document.getElementById('session-info').classList.add('hidden');
+                    // Ensure results visible
+                    document.getElementById('results-header').classList.remove('hidden');
+                    document.getElementById('results').classList.remove('hidden');
+                    // Optionally, hide define-candidates if somehow visible
+                    document.getElementById('define-candidates').classList.add('hidden');
                 }
             });
             // Start listening for paused
