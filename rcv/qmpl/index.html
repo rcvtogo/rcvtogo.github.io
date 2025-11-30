@@ -335,6 +335,18 @@
                 });
             }
         }
+        // Force non-admin to results mode
+        function forceResultsMode() {
+            document.getElementById('passcode-prompt').classList.add('hidden');
+            document.getElementById('voting-section').classList.add('hidden');
+            document.getElementById('session-info').classList.add('hidden');
+            document.getElementById('results-header').classList.remove('hidden');
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('define-candidates').classList.add('hidden');
+            if (roundsData) {
+                displayResults(roundsData);
+            }
+        }
         // Load existing session (now shows list)
         document.getElementById('load-session').addEventListener('click', () => {
             fetchSessionList();
@@ -385,15 +397,7 @@
                         }
                         // NEW: If results revealed and not admin, force show results mode
                         if (resultsRevealed && !isAdmin) {
-                            // Hide voting-related sections
-                            document.getElementById('passcode-prompt').classList.add('hidden');
-                            document.getElementById('voting-section').classList.add('hidden');
-                            document.getElementById('session-info').classList.add('hidden');
-                            // Ensure results visible
-                            document.getElementById('results-header').classList.remove('hidden');
-                            document.getElementById('results').classList.remove('hidden');
-                            // Optionally, hide define-candidates if somehow visible
-                            document.getElementById('define-candidates').classList.add('hidden');
+                            forceResultsMode();
                         }
                     });
                     // Start listening for paused
@@ -419,7 +423,10 @@
                     if (isAdmin) {
                         updatePauseButton();
                     }
-                    if (!isAdmin && passcode && passcode.trim() !== '') {
+                    // UPDATED: Check for results mode before passcode or normal flow
+                    if (resultsRevealed && !isAdmin) {
+                        forceResultsMode();
+                    } else if (!isAdmin && passcode && passcode.trim() !== '') {
                         // Show passcode prompt, hide everything else
                         document.getElementById('passcode-prompt').classList.remove('hidden');
                         const sectionsToHide = ['session-info', 'voting-section', 'results-section', 'define-candidates'];
@@ -567,15 +574,7 @@
                 }
                 // NEW: If results revealed and not admin, force show results mode
                 if (resultsRevealed && !isAdmin) {
-                    // Hide voting-related sections
-                    document.getElementById('passcode-prompt').classList.add('hidden');
-                    document.getElementById('voting-section').classList.add('hidden');
-                    document.getElementById('session-info').classList.add('hidden');
-                    // Ensure results visible
-                    document.getElementById('results-header').classList.remove('hidden');
-                    document.getElementById('results').classList.remove('hidden');
-                    // Optionally, hide define-candidates if somehow visible
-                    document.getElementById('define-candidates').classList.add('hidden');
+                    forceResultsMode();
                 }
             });
             // Start listening for paused
