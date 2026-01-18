@@ -30,10 +30,12 @@
 <body class="bg-gray-100 font-sans">
     <div class="container mx-auto p-6 max-w-3xl">
         <h1 class="text-3xl font-bold mb-6 text-center">Ranked Choice Voting (Multi-Device)</h1>
+
         <!-- Session ID display for sharing -->
         <div id="session-info" class="bg-blue-100 p-4 rounded mb-4 hidden">
             <p class="text-blue-800">Session ID: <span id="session-id-display"></span> | Share this URL with voters: <a id="share-url" href="#" target="_blank" class="underline">Click to copy</a></p>
         </div>
+
         <div id="define-candidates" class="bg-white p-6 rounded-lg shadow-md mb-6">
             <h2 class="text-xl font-semibold mb-4">Define Candidates</h2>
             <p class="text-gray-600 mb-4">Enter up to 4 candidates. Each must have a unique name. (Admin only 1)</p>
@@ -261,15 +263,11 @@
                     timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
             } else {
-                // Update votes only
-                dbRef.update({
-                    votes: votes
-                });
+                dbRef.update({ votes: votes });
             }
         }
         function updateVoteCount() {
-            const voteCountSpan = document.getElementById('vote-count');
-            voteCountSpan.textContent = `Total Votes: ${votes.length}`;
+            document.getElementById('vote-count').textContent = `Total Votes: ${votes.length}`;
         }
         function updateUndoButton() {
             const undoButton = document.getElementById('undo-ranking');
@@ -343,18 +341,15 @@
             document.getElementById('results-header').classList.remove('hidden');
             document.getElementById('results').classList.remove('hidden');
             document.getElementById('define-candidates').classList.add('hidden');
-            if (roundsData) {
-                displayResults(roundsData);
-            }
+            if (roundsData) displayResults(roundsData);
         }
-        // Load existing session (now shows list)
-        document.getElementById('load-session').addEventListener('click', () => {
-            fetchSessionList();
-        });
+
+        document.getElementById('load-session').addEventListener('click', fetchSessionList);
+
         document.getElementById('select-session').addEventListener('click', () => {
             const selectedId = document.getElementById('session-select').value;
             if (selectedId && selectedId.startsWith('session-')) {
-                isAdmin = true; // Treat manual load as admin
+                isAdmin = true;
                 sessionId = selectedId;
                 document.getElementById('load-session-div').classList.add('hidden');
                 loadSession();
@@ -370,7 +365,8 @@
             resultsRevealedRef = dbRef.child('resultsRevealed');
             pausedRef = dbRef.child('paused');
             roundsRef = dbRef.child('rounds');
-            dbRef.once('value').then((snapshot) => {
+
+            dbRef.once('value').then(snapshot => {
                 const data = snapshot.val();
                 if (data && data.candidates) {
                     candidates = data.candidates;
@@ -386,54 +382,39 @@
                     document.getElementById('candidate4').value = candidates[3] || '';
                     currentRanking = [];
                     hasVoted = false;
-                    syncVotes(); // Start listening for votes
-                    // Start listening for resultsRevealed
-                    resultsRevealedRef.on('value', (snap) => {
+                    syncVotes();
+
+                    resultsRevealedRef.on('value', snap => {
                         resultsRevealed = snap.val() || false;
                         updateShowResultsButton();
                         updateResultsVisibility();
-                        if (resultsRevealed && roundsData) {
-                            displayResults(roundsData);
-                        }
-                        // NEW: If results revealed and not admin, force show results mode
-                        if (resultsRevealed && !isAdmin) {
-                            forceResultsMode();
-                        }
+                        if (resultsRevealed && roundsData) displayResults(roundsData);
+                        if (resultsRevealed && !isAdmin) forceResultsMode();
                     });
-                    // Start listening for paused
-                    pausedRef.on('value', (snap) => {
+
+                    pausedRef.on('value', snap => {
                         isPaused = snap.val() || false;
-                        if (isAdmin) {
-                            updatePauseButton();
-                        }
+                        if (isAdmin) updatePauseButton();
                         updateSubmitButton();
                         updateUndoButton();
                         updateVotingPauseState();
                     });
-                    // Start listening for rounds
-                    roundsRef.on('value', (snap) => {
+
+                    roundsRef.on('value', snap => {
                         roundsData = snap.val() || null;
-                        if (resultsRevealed && roundsData) {
-                            displayResults(roundsData);
-                        }
+                        if (resultsRevealed && roundsData) displayResults(roundsData);
                     });
-                    if (resultsRevealed && roundsData) {
-                        displayResults(roundsData);
-                    }
-                    if (isAdmin) {
-                        updatePauseButton();
-                    }
-                    // UPDATED: Check for results mode before passcode or normal flow
+
+                    if (resultsRevealed && roundsData) displayResults(roundsData);
+                    if (isAdmin) updatePauseButton();
+
                     if (resultsRevealed && !isAdmin) {
                         forceResultsMode();
                     } else if (!isAdmin && passcode && passcode.trim() !== '') {
                         // Show passcode prompt, hide everything else
                         document.getElementById('passcode-prompt').classList.remove('hidden');
-                        const sectionsToHide = ['session-info', 'voting-section', 'results-section', 'define-candidates'];
-                        sectionsToHide.forEach(id => {
-                            const el = document.getElementById(id);
-                            if (el) el.classList.add('hidden');
-                        });
+                        ['session-info','voting-section','results-section','define-candidates']
+                            .forEach(id => document.getElementById(id)?.classList.add('hidden'));
                     } else {
                         // Normal flow: populate and show
                         populateCandidates();
@@ -445,16 +426,16 @@
                         document.getElementById('define-candidates').classList.add('hidden');
                         document.getElementById('session-info').classList.remove('hidden');
                         document.getElementById('session-id-display').textContent = sessionId;
-                        const currentUrl = new URL(window.location.href);
-                        currentUrl.searchParams.set('session', sessionId);
-                        document.getElementById('share-url').href = currentUrl.toString();
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('session', sessionId);
+                        document.getElementById('share-url').href = url.toString();
                         document.getElementById('session-note').classList.remove('hidden');
                         checkVoteStatus();
                         toggleUnhideButton();
                     }
                 } else {
                     alert('Session not found. Start a new one.');
-                    isAdmin = false; // Reset if failed
+                    isAdmin = false;
                     toggleUnhideButton();
                 }
             });
@@ -474,9 +455,9 @@
                 document.getElementById('voting-section').classList.remove('hidden');
                 document.getElementById('results-section').classList.remove('hidden');
                 document.getElementById('session-id-display').textContent = sessionId;
-                const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('session', sessionId);
-                document.getElementById('share-url').href = currentUrl.toString();
+                const url = new URL(window.location.href);
+                url.searchParams.set('session', sessionId);
+                document.getElementById('share-url').href = url.toString();
                 document.getElementById('session-note').classList.remove('hidden');
                 checkVoteStatus();
                 toggleUnhideButton();
@@ -486,7 +467,8 @@
                 document.getElementById('voter-passcode').value = '';
             }
         });
-        document.getElementById('voter-passcode').addEventListener('keydown', (e) => {
+
+        document.getElementById('voter-passcode').addEventListener('keydown', e => {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 document.getElementById('submit-passcode').click();
@@ -494,12 +476,10 @@
         });
         // Check URL for session ID on load
         window.addEventListener('load', () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            sessionId = urlParams.get('session');
-            isAdmin = !sessionId; // UPDATED: Set admin if no session ID
-            if (sessionId) {
-                loadSession();
-            }
+            const params = new URLSearchParams(window.location.search);
+            sessionId = params.get('session');
+            isAdmin = !sessionId;
+            if (sessionId) loadSession();
             toggleUnhideButton();
         });
         document.getElementById('hide-section').addEventListener('click', () => {
@@ -510,10 +490,9 @@
         });
         document.getElementById('pause-button').addEventListener('click', () => {
             if (!isAdmin) return;
-            const newPaused = !isPaused;
-            isPaused = newPaused;
+            isPaused = !isPaused;
             updatePauseButton();
-            dbRef.update({ paused: newPaused });
+            dbRef.update({ paused: isPaused });
         });
         // Start voting -> save to DB
         document.getElementById('start-voting').addEventListener('click', () => {
@@ -524,13 +503,14 @@
                 document.getElementById('candidate4').value.trim()
             ];
             const passcodeValue = document.getElementById('passcode').value.trim();
-            candidates = inputs.filter(name => name !== '').slice(0, 4);
+            candidates = inputs.filter(n => n !== '').slice(0,4);
+
             if (new Set(candidates).size !== candidates.length) {
-                alert('All candidate names must be unique.');
+                alert('Candidate names must be unique.');
                 return;
             }
             if (candidates.length < 2) {
-                alert('Please enter at least 2 candidates.');
+                alert('At least 2 candidates required.');
                 return;
             }
             sessionStartTime = new Date();
@@ -559,44 +539,34 @@
             document.getElementById('define-candidates').classList.add('hidden');
             document.getElementById('session-info').classList.remove('hidden');
             document.getElementById('session-id-display').textContent = sessionId;
-            const currentUrl = new URL(window.location.href);
-            currentUrl.searchParams.set('session', sessionId);
-            document.getElementById('share-url').href = currentUrl.toString();
+            const url = new URL(window.location.href);
+            url.searchParams.set('session', sessionId);
+            document.getElementById('share-url').href = url.toString();
             document.getElementById('session-note').classList.remove('hidden');
-            syncVotes(); // Start listening
-            // Start listening for resultsRevealed
-            resultsRevealedRef.on('value', (snap) => {
+            syncVotes();
+
+            resultsRevealedRef.on('value', snap => {
                 resultsRevealed = snap.val() || false;
                 updateShowResultsButton();
                 updateResultsVisibility();
-                if (resultsRevealed && roundsData) {
-                    displayResults(roundsData);
-                }
-                // NEW: If results revealed and not admin, force show results mode
-                if (resultsRevealed && !isAdmin) {
-                    forceResultsMode();
-                }
+                if (resultsRevealed && roundsData) displayResults(roundsData);
+                if (resultsRevealed && !isAdmin) forceResultsMode();
             });
-            // Start listening for paused
-            pausedRef.on('value', (snap) => {
+
+            pausedRef.on('value', snap => {
                 isPaused = snap.val() || false;
-                if (isAdmin) {
-                    updatePauseButton();
-                }
+                if (isAdmin) updatePauseButton();
                 updateSubmitButton();
                 updateUndoButton();
                 updateVotingPauseState();
             });
-            // Start listening for rounds
-            roundsRef.on('value', (snap) => {
+
+            roundsRef.on('value', snap => {
                 roundsData = snap.val() || null;
-                if (resultsRevealed && roundsData) {
-                    displayResults(roundsData);
-                }
+                if (resultsRevealed && roundsData) displayResults(roundsData);
             });
-            if (isAdmin) {
-                updatePauseButton();
-            }
+
+            if (isAdmin) updatePauseButton();
             checkVoteStatus();
             toggleUnhideButton();
             updateVotingPauseState();
@@ -604,16 +574,12 @@
         function populateCandidates() {
             const list = document.getElementById('candidate-list');
             list.innerHTML = '';
-            const shuffledCandidates = [...candidates];
-            for (let i = shuffledCandidates.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [shuffledCandidates[i], shuffledCandidates[j]] = [shuffledCandidates[j], shuffledCandidates[i]];
-            }
-            shuffledCandidates.forEach(candidate => {
+            const shuffled = [...candidates].sort(() => Math.random() - 0.5);
+            shuffled.forEach(cand => {
                 const div = document.createElement('div');
                 div.className = 'candidate-item flex items-center p-2 bg-gray-50 border rounded';
-                div.innerHTML = `<span>${candidate}</span>`;
-                div.addEventListener('click', () => handleCandidateClick(candidate, div));
+                div.innerHTML = `<span>${cand}</span>`;
+                div.addEventListener('click', () => handleCandidateClick(cand, div));
                 list.appendChild(div);
             });
             updateSubmitButton();
@@ -621,17 +587,14 @@
             updateVotingPauseState();
         }
         function handleCandidateClick(candidate, element) {
-            if (!isAdmin && isPaused) {
-                return;
-            }
+            if (!isAdmin && isPaused) return;
             if (!currentRanking.includes(candidate)) {
                 currentRanking.push(candidate);
                 element.remove();
-                const remainingCandidates = candidates.filter(c => !currentRanking.includes(c));
-                if (remainingCandidates.length === 1) {
-                    currentRanking.push(remainingCandidates[0]);
-                    const list = document.getElementById('candidate-list');
-                    list.innerHTML = '';
+                const remaining = candidates.filter(c => !currentRanking.includes(c));
+                if (remaining.length === 1) {
+                    currentRanking.push(remaining[0]);
+                    document.getElementById('candidate-list').innerHTML = '';
                 }
                 updateRankingDisplay();
                 updateSubmitButton();
@@ -639,32 +602,30 @@
             }
         }
         function updateRankingDisplay() {
-            const rankingList = document.getElementById('ranking-list');
-            rankingList.innerHTML = '';
-            currentRanking.forEach((candidate, index) => {
+            const ol = document.getElementById('ranking-list');
+            ol.innerHTML = '';
+            currentRanking.forEach(c => {
                 const li = document.createElement('li');
-                li.textContent = `${candidate}`;
-                rankingList.appendChild(li);
+                li.textContent = c;
+                ol.appendChild(li);
             });
         }
         function updateSubmitButton() {
-            const submitButton = document.getElementById('submit-vote');
+            const btn = document.getElementById('submit-vote');
             if (!isAdmin && isPaused) {
-                submitButton.disabled = true;
+                btn.disabled = true;
                 return;
             }
-            submitButton.disabled = currentRanking.length !== candidates.length;
+            btn.disabled = currentRanking.length !== candidates.length;
         }
         document.getElementById('undo-ranking').addEventListener('click', () => {
-            if (!isAdmin && isPaused) {
-                return;
-            }
+            if (!isAdmin && isPaused) return;
             currentRanking = [];
             populateCandidates();
             updateRankingDisplay();
             updateUndoButton();
         });
-        // Submit -> push to DB
+
         document.getElementById('submit-vote').addEventListener('click', () => {
             if (currentRanking.length !== candidates.length) return;
             if (!isAdmin && isPaused) {
@@ -672,31 +633,26 @@
                 return;
             }
             if (!isAdmin) {
-                const lastVoteKey = `lastVote_${sessionId}`;
-                const lastVote = localStorage.getItem(lastVoteKey);
-                if (lastVote) {
-                    const lastTime = parseInt(lastVote);
-                    const now = Date.now();
-                    const oneDay = 24 * 60 * 60 * 1000;
-                    if (now - lastTime < oneDay) {
-                        alert('You can only vote once per day.');
+                const key = `lastVote_${sessionId}`;
+                const last = localStorage.getItem(key);
+                if (last) {
+                    if (Date.now() - parseInt(last) < 24*60*60*1000) {
+                        alert('You already voted today.');
                         return;
                     }
                 }
             }
             playSound('submit');
-            votes.push([...currentRanking]); // Local first
+            votes.push([...currentRanking]);
             voteCounter++;
-            saveStateToDB(); // Sync to DB (triggers syncVotes on other devices)
+            saveStateToDB();
             currentRanking = [];
             populateCandidates();
             updateRankingDisplay();
             updateUndoButton();
             updateVoteCount();
             if (!isAdmin) {
-                // Hide voting interface for voters after submission
-                const lastVoteKey = `lastVote_${sessionId}`;
-                localStorage.setItem(lastVoteKey, Date.now().toString());
+                localStorage.setItem(`lastVote_${sessionId}`, Date.now().toString());
                 document.getElementById('voting-section').classList.add('hidden');
                 document.getElementById('session-info').classList.add('hidden');
                 hasVoted = true;
@@ -707,54 +663,63 @@
         document.getElementById('show-results').addEventListener('click', () => {
             if (!isAdmin) return;
             const rounds = [];
-            compute_rcv_winner(votes, candidates, rounds);
-            // Serialize for storage
-            const serializedRounds = rounds.map(round => ({
-                candidates: Array.from(round.candidates),
-                counts: Object.fromEntries(round.counts),
-                eliminated: round.eliminated,
-                winner: round.winner,
-                majority: round.majority,
-                randomChoice: round.randomChoice
+            compute_rcv_winner(votes, new Set(candidates), rounds);
+
+            const serialized = rounds.map(r => ({
+                candidates: Array.from(r.candidates),
+                counts: Object.fromEntries(r.counts),
+                eliminated: r.eliminated,
+                winner: r.winner,
+                majority: r.majority,           // now [round, fraction]
+                randomChoice: r.randomChoice
             }));
             dbRef.update({
-                rounds: serializedRounds,
+                rounds: serialized,
                 resultsRevealed: true
             });
-            // Immediate display for admin
-            displayResults(serializedRounds);
+
+            displayResults(serialized);
         });
-        // RCV compute function (unchanged except added randomChoice for initial tie)
+
+        // ──────────────────────────────────────────────────────────────
+        //   HELPER: Compare two majority tuples [round, fraction]
+        //   Returns:  1 if a is better, -1 if b is better, 0 if equal
+        // ──────────────────────────────────────────────────────────────
+        function compareMajorityTuples(a, b) {
+            if (a[0] !== b[0]) {
+                return b[0] - a[0];  // smaller round number is BETTER
+            }
+            return a[1] - b[1];      // then higher percentage
+        }
+
         function compute_rcv_winner(ballots, candidates = null, rounds = null) {
             try {
                 if (!Array.isArray(ballots) || ballots.length === 0) {
-                    throw new Error('Invalid ballots: Must be a non-empty array of arrays.');
+                    throw new Error('No ballots provided');
                 }
-                if (candidates && (!Array.isArray(candidates) || candidates.length === 0)) {
-                    throw new Error('Invalid candidates: Must be a non-empty array.');
-                }
+
                 if (!candidates) {
                     candidates = new Set(ballots.flat().filter(c => typeof c === 'string' && c));
-                    if (candidates.size === 0) {
-                        throw new Error('No valid candidates found in ballots.');
-                    }
+                } else if (candidates instanceof Set) {
+                    candidates = new Set(candidates);
                 } else {
                     candidates = new Set(candidates);
                 }
+
+                const currentRound = rounds ? rounds.length + 1 : 1;
+
                 let counts = new Map([...candidates].map(c => [c, 0]));
-                for (let b of ballots) {
-                    if (!Array.isArray(b)) {
-                        console.warn('Skipping invalid ballot:', b);
-                        continue;
-                    }
-                    for (let choice of b) {
+                for (const ballot of ballots) {
+                    if (!Array.isArray(ballot)) continue;
+                    for (const choice of ballot) {
                         if (candidates.has(choice)) {
-                            counts.set(choice, counts.get(choice) + 1);
+                            counts.set(choice, (counts.get(choice) || 0) + 1);
                             break;
                         }
                     }
                 }
-                if (Array.isArray(rounds)) {
+
+                if (rounds) {
                     rounds.push({
                         candidates: new Set(candidates),
                         counts: new Map(counts),
@@ -764,229 +729,191 @@
                         randomChoice: false
                     });
                 }
-                let values = [...counts.values()];
-                if (values.every(v => v === values[0]) && values[0] !== 0) {
-                    let winner = [...candidates][Math.floor(Math.random() * candidates.size)];
-                    let majority = 1 / candidates.size;
-                    if (Array.isArray(rounds)) {
-                        rounds[rounds.length - 1].winner = winner;
-                        rounds[rounds.length - 1].majority = majority;
-                        rounds[rounds.length - 1].randomChoice = true;
-                    }
-                    return [winner, majority];
-                }
-                let total = values.reduce((a, b) => a + b, 0);
-                if (total === 0) {
-                    throw new Error('No valid votes counted in this round.');
-                }
-                for (let [cand, cnt] of counts) {
+
+                const values = [...counts.values()];
+                const total = values.reduce((a,b)=>a+b,0) || 1;
+
+                // Check for majority winner
+                for (const [cand, cnt] of counts) {
                     if (cnt > total / 2) {
-                        if (Array.isArray(rounds)) {
-                            rounds[rounds.length - 1].winner = cand;
-                            rounds[rounds.length - 1].majority = cnt / total;
+                        const majorityTuple = [currentRound, cnt / total];
+                        if (rounds) {
+                            rounds[rounds.length-1].winner = cand;
+                            rounds[rounds.length-1].majority = majorityTuple;
                         }
-                        return [cand, cnt / total];
+                        return [cand, majorityTuple];
                     }
                 }
-                // Check for zero-vote candidates first
-                let zero_vote_candidates = [...counts].filter(([c, v]) => v === 0).map(([c]) => c);
-                if (zero_vote_candidates.length > 0) {
-                    if (Array.isArray(rounds)) {
-                        rounds[rounds.length - 1].eliminated = zero_vote_candidates.join(', ');
+
+                // All remaining candidates tied (very rare)
+                if (values.every(v => v === values[0]) && values[0] !== 0) {
+                    const winner = [...candidates][Math.floor(Math.random() * candidates.size)];
+                    const majorityTuple = [currentRound, 1 / candidates.size];
+                    if (rounds) {
+                        rounds[rounds.length-1].winner = winner;
+                        rounds[rounds.length-1].majority = majorityTuple;
+                        rounds[rounds.length-1].randomChoice = true;
                     }
-                    let new_candidates = new Set(candidates);
-                    zero_vote_candidates.forEach(c => new_candidates.delete(c));
-                    if (new_candidates.size === 0) {
-                        throw new Error('All candidates eliminated.');
-                    }
-                    return compute_rcv_winner(ballots, [...new_candidates], rounds);
+                    return [winner, majorityTuple];
                 }
-                // Proceed with non-zero vote elimination
-                let min_votes = Math.min(...values.filter(v => v > 0));
-                let lowest_candidates = [...counts].filter(([c, v]) => v === min_votes).map(([c]) => c);
-                if (lowest_candidates.length === 0) {
-                    throw new Error('No candidates to eliminate.');
-                }
-                if (lowest_candidates.length === 1) {
-                    if (Array.isArray(rounds)) {
-                        rounds[rounds.length - 1].eliminated = lowest_candidates[0];
+
+                // Eliminate zero-vote candidates first
+                const zeroVote = [...counts].filter(([,v]) => v === 0).map(([c]) => c);
+                if (zeroVote.length > 0) {
+                    if (rounds) {
+                        rounds[rounds.length-1].eliminated = zeroVote.join(', ');
                     }
-                    let new_candidates = new Set(candidates);
-                    new_candidates.delete(lowest_candidates[0]);
-                    if (new_candidates.size === 0) {
-                        throw new Error('All candidates eliminated.');
-                    }
-                    return compute_rcv_winner(ballots, [...new_candidates], rounds);
+                    zeroVote.forEach(c => candidates.delete(c));
+                    if (candidates.size === 0) throw new Error('All candidates eliminated');
+                    return compute_rcv_winner(ballots, candidates, rounds);
                 }
-                let best_majority = -1;
-                let best_elims = [];
-                let best_winners = [];
-                for (let elim of lowest_candidates) {
-                    let new_candidates = new Set(candidates);
-                    new_candidates.delete(elim);
+
+                // Find candidates with fewest votes
+                const minVotes = Math.min(...values.filter(v => v > 0));
+                const lowest = [...counts].filter(([,v]) => v === minVotes).map(([c]) => c);
+
+                if (lowest.length === 1) {
+                    if (rounds) rounds[rounds.length-1].eliminated = lowest[0];
+                    candidates.delete(lowest[0]);
+                    if (candidates.size === 0) throw new Error('All candidates eliminated');
+                    return compute_rcv_winner(ballots, candidates, rounds);
+                }
+
+                // ─── TIE-BREAKER: Look ahead for best future majority ───
+                let bestMajority = [-Infinity, -Infinity];  // impossible value
+                let bestElims = [];
+                let bestWinners = [];
+
+                for (const elim of lowest) {
+                    const nextCandidates = new Set(candidates);
+                    nextCandidates.delete(elim);
+
                     for (let i = 0; i < 100; i++) {
-                        let [winner, majority] = compute_rcv_winner(ballots, [...new_candidates], null);
-                        if (majority > best_majority) {
-                            best_majority = majority;
-                            best_elims = [elim];
-                            best_winners = [winner];
-                        } else if (majority === best_majority) {
-                            best_elims.push(elim);
-                            best_winners.push(winner);
+                        const [, majorityTuple] = compute_rcv_winner(ballots, nextCandidates, null);
+
+                        const cmp = compareMajorityTuples(majorityTuple, bestMajority);
+                        if (cmp > 0) {
+                            bestMajority = majorityTuple;
+                            bestElims = [elim];
+                            bestWinners = [majorityTuple[2]]; // winner is 1st element of return
+                        } else if (cmp === 0) {
+                            bestElims.push(elim);
+                            bestWinners.push(majorityTuple[2]);
                         }
                     }
                 }
-                let chosen_elim = best_elims[Math.floor(Math.random() * best_elims.length)];
-                if (Array.isArray(rounds)) {
-                    let message = chosen_elim;
-                    if (new Set(best_winners).size === 1 && new Set(best_elims).size > 1) {
-                      message += ' (eliminating any other option yields the same final result)';
-                    } else if (new Set(best_winners).size === 1 && new Set(best_elims).size === 1) {
-                      message += ' (eliminating any other option yields a lower majority score)';
+
+                const chosen = bestElims[Math.floor(Math.random() * bestElims.length)];
+
+                if (rounds) {
+                    let msg = chosen;
+                    if (new Set(bestWinners).size === 1) {
+                        if (bestElims.length > 1) msg += ' (multiple equivalent choices)';
+                        else msg += ' (best majority score)';
                     } else {
-                      message += ' (random choice) ';
+                        msg += ' (random among best future outcomes)';
                     }
-                    rounds[rounds.length - 1].eliminated = message;
-                    rounds[rounds.length - 1].randomChoice = new Set(best_winners).size >= 2;
+                    rounds[rounds.length-1].eliminated = msg;
+                    rounds[rounds.length-1].randomChoice = new Set(bestWinners).size >= 2;
                 }
-                let new_candidates = new Set(candidates);
-                new_candidates.delete(chosen_elim);
-                if (new_candidates.size === 0) {
-                    throw new Error('All candidates eliminated.');
-                }
-                return compute_rcv_winner(ballots, [...new_candidates], rounds);
-            } catch (error) {
-                console.error('Error in compute_rcv_winner:', error.message, error.stack);
-                throw error;
+
+                candidates.delete(chosen);
+                if (candidates.size === 0) throw new Error('All candidates eliminated');
+                return compute_rcv_winner(ballots, candidates, rounds);
+
+            } catch (e) {
+                console.error('RCV error:', e);
+                throw e;
             }
         }
-        // Display results from stored rounds
+
         function displayResults(storedRounds) {
             const resultsDiv = document.getElementById('results');
-            if (!candidates || !Array.isArray(candidates) || candidates.length < 2) {
-                resultsDiv.innerHTML = '<p>Invalid candidates list. Please define at least 2 candidates.</p>';
+            if (!candidates?.length || candidates.length < 2) {
+                resultsDiv.innerHTML = '<p>Invalid candidates.</p>';
                 return;
             }
-            if (!storedRounds || !Array.isArray(storedRounds) || storedRounds.length === 0) {
-                resultsDiv.innerHTML = '<p>No results available yet.</p>';
+            if (!storedRounds?.length) {
+                resultsDiv.innerHTML = '<p>No results yet.</p>';
                 return;
             }
             resultsDiv.innerHTML = '';
-            const candidateColors = {};
-            const colorPalette = [
-                { background: '#00A000', border: '#00A000' }, // Green
-                { background: '#1976D2', border: '#1976D2' }, // Blue
-                { background: '#00d3d3', border: '#00A0A0' }, // Yellow
-                { background: '#891fb6', border: '#891fb6' } // Red
+
+            const colors = [
+                { bg: '#00A000', border: '#008000' },
+                { bg: '#1976D2', border: '#0D47A1' },
+                { bg: '#00d3d3', border: '#008080' },
+                { bg: '#891fb6', border: '#6a1b9a' }
             ];
-            candidates.forEach((candidate, index) => {
-                candidateColors[candidate] = colorPalette[index % colorPalette.length];
-            });
-            try {
-                const randomChoiceMade = storedRounds.some(round => round.randomChoice);
-                storedRounds.forEach((round, index) => {
-                    if (!round || !round.counts) {
-                        console.error('Invalid round data at index:', index, round);
-                        const errorP = document.createElement('p');
-                        errorP.className = 'text-red-600 mt-2';
-                        errorP.textContent = `Error: Invalid data for round ${index + 1}. Skipping chart.`;
-                        resultsDiv.appendChild(errorP);
-                        return;
-                    }
-                    const roundDiv = document.createElement('div');
-                    roundDiv.innerHTML = `<h3 class="font-semibold mt-4">Round ${index + 1}</h3>`;
-                    const ul = document.createElement('ul');
-                    ul.className = 'list-disc pl-5';
-                    const sortedCandidates = round.candidates.sort((a, b) => a.localeCompare(b));
-                    sortedCandidates.forEach(candidate => {
-                        const count = round.counts[candidate] || 0;
-                        const li = document.createElement('li');
-                        li.textContent = `${candidate}: ${count} votes`;
-                        ul.appendChild(li);
-                    });
-                    roundDiv.appendChild(ul);
-                    const chartId = `vote-chart-round-${index + 1}-${chartCounter}-${Date.now()}`;
-                    const chartContainer = document.createElement('div');
-                    chartContainer.className = 'chart-container';
-                    chartContainer.innerHTML = `<canvas id="${chartId}" height="${sortedCandidates.length * 50}"></canvas>`;
-                    roundDiv.appendChild(chartContainer);
-                    resultsDiv.appendChild(roundDiv);
-                    // Create chart immediately after appending to DOM
-                    const ctx = document.getElementById(chartId);
-                    if (!ctx) {
-                        console.error('Canvas not found for chartId:', chartId);
-                        const errorP = document.createElement('p');
-                        errorP.className = 'text-red-600 mt-2';
-                        errorP.textContent = `Error: Chart for round ${index + 1} could not be rendered.`;
-                        roundDiv.appendChild(errorP);
-                        return;
-                    }
-                    try {
-                        new Chart(ctx.getContext('2d'), {
-                            type: 'bar',
-                            data: {
-                                labels: sortedCandidates,
-                                datasets: [{
-                                    label: `Votes in Round ${index + 1}`,
-                                    data: sortedCandidates.map(candidate => round.counts[candidate] || 0),
-                                    backgroundColor: sortedCandidates.map(candidate => candidateColors[candidate]?.background || 'gray'),
-                                    borderColor: sortedCandidates.map(candidate => candidateColors[candidate]?.border || 'gray'),
-                                    borderWidth: 1
-                                }]
-                            },
-                            options: {
-                                indexAxis: 'y',
-                                scales: {
-                                    x: {
-                                        beginAtZero: true,
-                                        title: {
-                                            display: true,
-                                            text: 'Number of Votes',
-                                            font: { size: 16 }
-                                        },
-                                        ticks: { stepSize: 1, font: { size: 14 } }
-                                    },
-                                    y: {
-                                        title: {
-                                            display: true,
-                                            text: 'Candidates',
-                                            font: { size: 16 }
-                                        },
-                                        ticks: { font: { size: 14 } }
-                                    }
-                                },
-                                plugins: { legend: { display: false } }
-                            }
-                        });
-                    } catch (chartError) {
-                        console.error('Error creating chart for round:', index + 1, chartError);
-                        const errorP = document.createElement('p');
-                        errorP.className = 'text-red-600 mt-2';
-                        errorP.textContent = `Error: Chart for round ${index + 1} failed: ${chartError.message}`;
-                        roundDiv.appendChild(errorP);
-                    }
-                    if (round.eliminated) {
-                        const p = document.createElement('p');
-                        p.className = 'mt-2';
-                        p.textContent = `Eliminated: ${round.eliminated}${round.randomChoice ? ' (randomly selected due to a tie)' : ''}`;
-                        roundDiv.appendChild(p);
-                    } else if (round.winner) {
-                        const p = document.createElement('p');
-                        p.className = 'font-bold mt-2';
-                        p.textContent = `Winner: ${round.winner} with ${(round.majority * 100).toFixed(2)}% of votes${randomChoiceMade ? ' (randomly selected due to a tie)' : ''}`;
-                        roundDiv.appendChild(p);
-                    }
+
+            const candidateColors = {};
+            candidates.forEach((c, i) => candidateColors[c] = colors[i % colors.length]);
+
+            const anyRandom = storedRounds.some(r => r.randomChoice);
+
+            storedRounds.forEach((round, idx) => {
+                const roundDiv = document.createElement('div');
+                roundDiv.innerHTML = `<h3 class="font-semibold mt-6 text-lg">Round ${idx + 1}</h3>`;
+
+                const ul = document.createElement('ul');
+                ul.className = 'list-disc pl-6 mb-4';
+                const sorted = [...round.candidates].sort();
+                sorted.forEach(c => {
+                    const li = document.createElement('li');
+                    li.textContent = `${c}: ${round.counts[c] || 0} votes`;
+                    ul.appendChild(li);
                 });
-                if (!storedRounds.some(round => round.winner) && storedRounds.length > 0) {
-                    const noWinnerP = document.createElement('p');
-                    noWinnerP.className = 'font-bold mt-2';
-                    noWinnerP.textContent = 'No winner (all candidates eliminated or no valid votes).';
-                    resultsDiv.appendChild(noWinnerP);
+                roundDiv.appendChild(ul);
+
+                const chartId = `chart-${idx}-${Date.now()}`;
+                const container = document.createElement('div');
+                container.className = 'chart-container';
+                container.innerHTML = `<canvas id="${chartId}" height="${sorted.length * 45}"></canvas>`;
+                roundDiv.appendChild(container);
+
+                resultsDiv.appendChild(roundDiv);
+
+                try {
+                    new Chart(document.getElementById(chartId), {
+                        type: 'bar',
+                        data: {
+                            labels: sorted,
+                            datasets: [{
+                                label: `Round ${idx + 1}`,
+                                data: sorted.map(c => round.counts[c] || 0),
+                                backgroundColor: sorted.map(c => candidateColors[c]?.bg || '#9e9e9e'),
+                                borderColor: sorted.map(c => candidateColors[c]?.border || '#757575'),
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            indexAxis: 'y',
+                            scales: {
+                                x: { beginAtZero: true, title: { display: true, text: 'Votes' } }
+                            },
+                            plugins: { legend: { display: false } }
+                        }
+                    });
+                } catch (e) {
+                    console.error('Chart error:', e);
                 }
-            } catch (error) {
-                console.error('Error in displayResults:', error.message, error.stack);
-                resultsDiv.innerHTML = `<p>Error displaying results: ${error.message}. Please check the console for details.</p>`;
-            }
+
+                if (round.eliminated) {
+                    const p = document.createElement('p');
+                    p.className = 'mt-2 text-gray-700';
+                    p.textContent = `Eliminated: ${round.eliminated}${round.randomChoice ? ' (tie → random)' : ''}`;
+                    roundDiv.appendChild(p);
+                }
+
+                if (round.winner) {
+                    const perc = (round.majority[1] * 100).toFixed(2);
+                    const rnum = round.majority[0];
+                    const p = document.createElement('p');
+                    p.className = 'font-bold mt-3 text-lg';
+                    p.textContent = `Winner: ${round.winner} — ${perc}% (Round ${rnum})${anyRandom ? ' (tie/random involved)' : ''}`;
+                    roundDiv.appendChild(p);
+                }
+            });
         }
         updateVoteCount();
     </script>
