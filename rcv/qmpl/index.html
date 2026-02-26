@@ -201,8 +201,9 @@
         function syncVotes() {
             if (!votesRef) return;
             votesRef.on('value', (snapshot) => {
-                const dbVotes = snapshot.val() || [];
-                votes = Array.isArray(dbVotes) ? dbVotes : [];
+                const dbVotes = snapshot.val();
+                // Firebase push() stores as keyed object; convert to array
+                votes = dbVotes ? Object.values(dbVotes) : [];
                 // Filter invalid votes
                 votes = votes.filter(vote => Array.isArray(vote) && vote.every(c => candidates.includes(c)));
                 updateVoteCount();
@@ -247,25 +248,23 @@
                 resultsEl.classList.remove('hidden');
             }
         }
-        // Save state to DB
+        // Save initial session state to DB (never writes votes)
         function saveStateToDB() {
             if (!dbRef) return;
-            if (votes.length === 0) {
-                // Initial save
-                dbRef.set({
-                    candidates: candidates,
-                    passcode: passcode,
-                    votes: votes,
-                    resultsRevealed: false,
-                    paused: false,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
-                });
-            } else {
-                // Update votes only
-                dbRef.update({
-                    votes: votes
-                });
-            }
+            // Initial session creation only — never writes votes
+            dbRef.set({
+                candidates: candidates,
+                passcode: passcode,
+                resultsRevealed: false,
+                paused: false,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+
+        // Atomically append a single vote to DB
+        function pushVoteToDB(ranking) {
+            if (!votesRef) return;
+            votesRef.push(ranking); // Atomic append — no read-modify-write
         }
         function updateVoteCount() {
             const voteCountSpan = document.getElementById('vote-count');
@@ -375,7 +374,10 @@
                 if (data && data.candidates) {
                     candidates = data.candidates;
                     passcode = data.passcode || null;
-                    votes = data.votes || [];
+                    // Convert stored votes (keyed object from push()) to array
+                    const rawVotes = data.votes;
+                    votes = rawVotes ? Object.values(rawVotes) : [];
+                    votes = votes.filter(vote => Array.isArray(vote) && vote.every(c => candidates.includes(c)));
                     resultsRevealed = data.resultsRevealed || false;
                     isPaused = data.paused || false;
                     roundsData = data.rounds || null;
@@ -547,7 +549,7 @@
             resultsRevealedRef = dbRef.child('resultsRevealed');
             pausedRef = dbRef.child('paused');
             roundsRef = dbRef.child('rounds');
-            saveStateToDB(); // Initial save
+            saveStateToDB(); // Initial save (no votes written)
             document.getElementById('results').innerHTML = '<p>No votes submitted yet.</p>';
             currentRanking = [];
             populateCandidates();
@@ -664,7 +666,7 @@
             updateRankingDisplay();
             updateUndoButton();
         });
-        // Submit -> push to DB
+        // Submit -> push single vote to DB atomically
         document.getElementById('submit-vote').addEventListener('click', () => {
             if (currentRanking.length !== candidates.length) return;
             if (!isAdmin && isPaused) {
@@ -685,9 +687,8 @@
                 }
             }
             playSound('submit');
-            votes.push([...currentRanking]); // Local first
             voteCounter++;
-            saveStateToDB(); // Sync to DB (triggers syncVotes on other devices)
+            pushVoteToDB([...currentRanking]); // Atomic push to DB; syncVotes listener updates local votes
             currentRanking = [];
             populateCandidates();
             updateRankingDisplay();
