@@ -1,0 +1,35 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+#output {
+            font-size: 4em; /* 3× normal size */
+        }
+#code {
+        font-size: 4em;                       /* 3× bigger font */
+    border: 3px solid cyan;               /* Cyan border */
+    background-color: #e6f7ff;            /* Very light blue */
+    padding: 10px;                         /* Space inside for better look */
+}
+</style>
+    <meta charset="UTF-8">
+    <title>Passcode Protected Message</title>
+    <script>
+        function checkPasscode() {
+            var input = document.getElementById('code').value;
+            var encodedInput = btoa(input);
+            if (encodedInput === "cml2ZXI=") {
+                var decodedMessage = atob("aHR0cHM6Ly9zaWduYWwuZ3JvdXAvI0NqUUtJRW1PTVVlUE1WZDVZUDRVc3l1ZlRoT3V3RmdWN0VPQmlUek1QVG1SR25tVEVoQW5EZGdTOHNoUmQtWjRsbmdSLXRQNw==");
+                document.getElementById('output').innerHTML = `<a href="${decodedMessage}" target="_blank">${decodedMessage}</a>`;
+            } else {
+                document.getElementById('output').innerText = "";
+            }
+        }
+    </script>
+</head>
+<body>
+    <input type="password" id="code" onkeyup="checkPasscode()" />
+    <div id="output"></div>
+</body>
+</html>
