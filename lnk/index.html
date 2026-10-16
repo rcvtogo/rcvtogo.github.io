@@ -20,7 +20,7 @@
             var input = document.getElementById('code').value;
             var encodedInput = btoa(input);
             if (encodedInput === "cml2ZXI=") {
-                var decodedMessage = atob("aHR0cHM6Ly9zaWduYWwuZ3JvdXAvI0NqUUtJRW1PTVVlUE1WZDVZUDRVc3l1ZlRoT3V3RmdWN0VPQmlUek1QVG1SR25tVEVoQW5EZGdTOHNoUmQtWjRsbmdSLXRQNw==");
+                var decodedMessage = atob("aHR0cHM6Ly9jaGF0LndoYXRzYXBwLmNvbS9FbjRRbldkcVYwYUFUcEdBZEdsbnl0P3M9Y2wmcD1hJm1sdT00Jmlscj00");
                 document.getElementById('output').innerHTML = `<a href="${decodedMessage}" target="_blank">${decodedMessage}</a>`;
             } else {
                 document.getElementById('output').innerText = "";
